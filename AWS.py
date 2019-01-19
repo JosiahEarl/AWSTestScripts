@@ -21,6 +21,7 @@
 #---------------------------------------------------------------------
 
 import argparse
+import ast
 import boto3
 import logging
 import os
@@ -37,7 +38,7 @@ THIS_DIR = os.path.dirname(__file__)
 #log_file = '/tmp/script_logs/base_template_log.log'
 
 # Log file in current directory
-log_file = '{this_dir}/base_template_log.log'.format(this_dir=THIS_DIR)
+log_file = '{this_dir}/aws_scripts.log'.format(this_dir=THIS_DIR)
 
 # Local file debugging output
 FORMAT = '%(asctime)s %(levelname)s %(lineno)s \t%(message)s'
@@ -60,22 +61,35 @@ logging.basicConfig(filename=log_file, format=FORMAT, level=(logging.INFO))
 class EC2_class(object):
 
     def __init__(self, instanceid):
-        # Define self variables based on passed arguments that can be used within class
-        self.instance = instanceid
+        try:
+            logging.info('Initializing class variables in EC2_class...')
 
-        #instantiate an EC2 client
-        self.EC2_Client = boto3.client('ec2')
+            # Define self variables based on passed arguments that can be used within class
+            self.instance = instanceid
+
+            #instantiate an EC2 client
+            self.EC2_Client = boto3.client('ec2')
+        except Exception as exc:
+            logging.error('Error occurred in EC2 init function: {}'.format(exc.message))
+
+            raise EC2InitException(exc.message)
 
     def describe_instances(self):
         """
         This method describes all EC2 instances
         """
         try:
+            logging.info('Running describe_instances...')
+
             # Call describe_instanaces
             response = self.EC2_Client.describe_instances()
 
+            logging.info('Result of describe_instances: {}...'.format(response))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in EC2 describe_instances function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise DescribeInstancesException(exc.message)
 
@@ -84,14 +98,20 @@ class EC2_class(object):
         This method starts an EC2 instance
         """
         try:
+            logging.info('Running start_instance on instance {}...'.format(self.instance))
+
             # Start an EC2 instance
             response = self.EC2_Client.start_instances(
                 InstanceIds=['{}'.format(self.instance)],
                 DryRun=False
             )
 
+            logging.info('Result of start_instance: {}...'.format(response))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in EC2 start_instance function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise StartInstancesException(exc.message)
 
@@ -100,14 +120,20 @@ class EC2_class(object):
         This method stops an EC2 instance
         """
         try:
+            logging.info('Running stop_instance on instance: {}...'.format(self.instance))
+
             # Stop an EC2 instance
             response = self.EC2_Client.stop_instances(
                 InstanceIds=['{}'.format(self.instance)],
                 DryRun=False
             )
 
+            logging.info('Result of stop_instance: {}...'.format(response))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in EC2 stop_instance function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise StopInstancesException(exc.message)
 
@@ -125,19 +151,33 @@ class S3_class(object):
     def __init__(self):
         # Define self variables based on passed arguments that can be used within class
 
-        # Instantiate an S3 client
-        self.S3 = boto3.client('s3')
+        try:
+            logging.info('Initializing class variables in S3_class...')
+
+            # Instantiate an S3 client
+            self.S3 = boto3.client('s3')
+        except Exception as exc:
+            logging.error('Error occurred in S3_class init function: {}'.format(exc.message))
+
+            raise S3InitException(exc.message)
 
     def create_bucket(self, bucket_name):
         """
         This method creates an S3 bucket
         """
         try:
+            logging.info('Running create_bucket in S3_class...')
+
             # Create an S3 bucket
             response = self.S3.create_bucket(Bucket='{}'.format(bucket_name),
                                   CreateBucketConfiguration={'LocationConstraint': 'us-east-2'})
+
+            logging.info('Result of create_bucket: {}...'.format(response))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in S3 create_bucket function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise CreateBucketException(exc.message)
 
@@ -146,6 +186,8 @@ class S3_class(object):
         This method lists S3 buckets in an AWS instance
         """
         try:
+            logging.info('Running list_buckets in S3_class...')
+
             # Call S3 to list current buckets
             response = self.S3.list_buckets()
 
@@ -154,8 +196,13 @@ class S3_class(object):
 
             # Print out the bucket list
             print("Bucket List: {}".format(buckets))
+
+            logging.info('Result of list_buckets: {response}\n\nBucket List: {bucket_list}...'.format(response=response, bucket_list=buckets))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in S3 list_buckets function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise CreateBucketException(exc.message)
 
@@ -174,23 +221,37 @@ class CF_class(object):
     def __init__(self):
         # Define self variables based on passed arguments that can be used within class
         try:
+            logging.info('Initializing class variables in CF_class...')
+
             # Instantiate cloudformation client
             self.CF_Client = boto3.client('cloudformation')
 
-            # Open CloudFormation config file and store in self.CF_Template
-            with open(os.path.normpath(os.path.join(THIS_DIR, '<JSON or YAML config file name>')), 'r') as file:
-                self.CF_Template = file.read()
+            # Open CloudFormation EC2 config file and store in self.CF_EC2_Template
+            with open(os.path.normpath(os.path.join(THIS_DIR, 'cf_ec2.yaml')), 'r') as file:
+                self.CF_EC2_Template = file.read()
+
+            # Open CloudFormation Route53 EC2 config file and store in self.CF_Template
+            with open(os.path.normpath(os.path.join(THIS_DIR, 'cf_ec2_route53.yaml')), 'r') as file:
+                self.CF_EC2_Route53_Template = file.read()
+
+            # Open Route53 paramters file and store in self.route53_config
+            with open(os.path.normpath(os.path.join(THIS_DIR, 'route53_config.json')), 'r') as file:
+                self.route53_config = ast.literal_eval(file.read())
         except Exception as exc:
+            logging.error('Error occurred in CF_class init function: {}'.format(exc.message))
+
             raise CloudFormationInitException(exc.message)
 
-    def build_cf_stack(self):
+    def build_cf_ec2_stack(self):
         """
         This method builds a CF stack based on a CF template
         """
         try:
+            logging.info('Building EC2 cloudformation stack...')
+
             response = self.CF_Client.create_stack(
                 StackName='teststack',
-                TemplateBody=self.CF_Template,
+                TemplateBody=self.CF_EC2_Template,
                 Parameters=[
                     {
                         'ParameterKey': 'KeyName',
@@ -203,8 +264,35 @@ class CF_class(object):
                 ]
             )
 
+            logging.info('Result of stack building: {}...'.format(response))
+
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in CF_class build_cf_ec2_stack function: {}'.format(exc.message))
+
+            # Capture any exceptions thrown and raise an exception specific to this class method
+            raise BuildCFStackException(exc.message)
+
+    def build_cf_ec2_route53_stack(self):
+        """
+        This method builds a CF stack with route53 based on a CF template.
+        Note: You need to create a Hosted Zone in AWS before running this method.
+        """
+        try:
+            logging.info('Building EC2 cloudformation stack with Route 53 route...')
+
+            response = self.CF_Client.create_stack(
+                StackName='testroute53stack',
+                TemplateBody=self.CF_EC2_Route53_Template,
+                Parameters=self.route53_config
+            )
+
+            logging.info('Result of stack building: {}...'.format(response))
+
+            print(response)
+        except Exception as exc:
+            logging.error('Error occurred in CF_class build_cf_ec2_route53_stack function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise BuildCFStackException(exc.message)
 
@@ -213,17 +301,27 @@ class CF_class(object):
         This method destroys a CF stack
         """
         try:
+            logging.info('Running destroy_cf_stack...')
+
             response = self.CF_Client.delete_stack(
-                StackName='teststack'
+                StackName='testroute53stack'
             )
+
+            logging.info('Result of destroy_cf_stack: {}...'.format(response))
 
             print(response)
         except Exception as exc:
+            logging.error('Error occurred in CF_class destroy_cf_stack function: {}'.format(exc.message))
+
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise BuildCFStackException(exc.message)
 
 class BaseException(Exception):
     """A base exception that all other exceptions should inherit from."""
+    # If you want to include additional logic or fucntions within this inherited exception, do this below
+
+class EC2InitException(BaseException):
+    """A child exception for the EC2 class init method."""
     # If you want to include additional logic or fucntions within this inherited exception, do this below
 
 class DescribeInstancesException(BaseException):
@@ -236,6 +334,10 @@ class StartInstancesException(BaseException):
 
 class StopInstancesException(BaseException):
     """A child exception for the stop_instance method."""
+    # If you want to include additional logic or fucntions within this inherited exception, do this below
+
+class S3InitException(BaseException):
+    """A child exception for the S3 class init method."""
     # If you want to include additional logic or fucntions within this inherited exception, do this below
 
 class CreateBucketException(BaseException):
@@ -296,25 +398,28 @@ def create_argparser(parser=None):
 #
 # *********************************************************************
 def main(args=None):
-
-    if args:
-        # Create parser
-        parser = create_argparser()
-
-        # Parse args (if exist)
-        parsed_args = parser.parse_args(args)
-
-    # Create EC2 class object
-    ec2_class_obj = EC2_class('<instance ID here>')
-
-    # Create S3 class object
-    s3_class_obj = S3_class()
-
-    # Create CloudFormation class object
-    cf_class_obj = CF_class()
-
-    # Call class methods
     try:
+        logging.info('Starting procedures...')
+
+        if args:
+            # Create parser
+            parser = create_argparser()
+
+            # Parse args (if exist)
+            parsed_args = parser.parse_args(args)
+
+        logging.info('Creating class objects...')
+
+        # Create EC2 class object
+        ec2_class_obj = EC2_class('<instance ID here>')
+
+        # Create S3 class object
+        s3_class_obj = S3_class()
+
+        # Create CloudFormation class object
+        cf_class_obj = CF_class()
+
+        # Call class methods
         # Uncomment below lines to run methods
 
         #ec2_class_obj.describe_instances()
@@ -322,9 +427,14 @@ def main(args=None):
         #ec2_class_obj.start_instance()
         #s3_class_obj.create_bucket('testbucket12r1o2ur2')
         #s3_class_obj.list_buckets()
-        #cf_class_obj.build_cf_stack()
+        #cf_class_obj.build_cf_ec2_stack()
+        #cf_class_obj.build_cf_ec2_route53_stack()
         #cf_class_obj.destroy_cf_stack()
+
+        logging.info('Done!')
     except Exception as exc:
+        logging.error('Error occurred in Main function: {}'.format(exc.message))
+
         print('Error encountered: {}'.format(exc.message))
         sys.exit(1)
 

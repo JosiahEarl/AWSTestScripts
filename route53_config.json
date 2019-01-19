@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "testkeypair"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t2.micro"
+  },
+  {
+    "ParameterKey": "HostedZoneName",
+    "ParameterValue": "<name of domain> (don't forget the dot at the end of this)."
+  },
+  {
+    "ParameterKey": "Subdomain",
+    "ParameterValue": "<name of subdomain or server>"
+  }
+]
