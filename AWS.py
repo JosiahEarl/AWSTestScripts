@@ -234,6 +234,10 @@ class CF_class(object):
             with open(os.path.normpath(os.path.join(THIS_DIR, 'cf_ec2_route53.yaml')), 'r') as file:
                 self.CF_EC2_Route53_Template = file.read()
 
+            # Open CloudFormation ECS config file and store in self.CF_Template
+            with open(os.path.normpath(os.path.join(THIS_DIR, 'cf_ecs_stack.yaml')), 'r') as file:
+                self.CF_ECS_Template = file.read()
+
             # Open Route53 paramters file and store in self.route53_config
             with open(os.path.normpath(os.path.join(THIS_DIR, 'route53_config.json')), 'r') as file:
                 self.route53_config = ast.literal_eval(file.read())
@@ -296,6 +300,34 @@ class CF_class(object):
             # Capture any exceptions thrown and raise an exception specific to this class method
             raise BuildCFStackException(exc.message)
 
+    def build_cf_ecs_stack(self):
+        """
+        This method builds a CF ECS stack
+        """
+        try:
+            logging.info('Building ECS cloudformation stack...')
+
+            response = self.CF_Client.create_stack(
+                StackName='testecsstack',
+                TemplateBody=self.CF_ECS_Template,
+                Parameters=[
+                    {
+                        'ParameterKey': 'InstanceType',
+                        'ParameterValue': 't2.micro'
+                    },
+                ],
+                Capabilities=['CAPABILITY_IAM']
+            )
+
+            logging.info('Result of stack building: {}...'.format(response))
+
+            print(response)
+        except Exception as exc:
+            logging.error('Error occurred in CF_class build_cf_ecs_stack function: {}'.format(exc.message))
+
+            # Capture any exceptions thrown and raise an exception specific to this class method
+            raise BuildCFStackException(exc.message)
+
     def destroy_cf_stack(self):
         """
         This method destroys a CF stack
@@ -304,7 +336,7 @@ class CF_class(object):
             logging.info('Running destroy_cf_stack...')
 
             response = self.CF_Client.delete_stack(
-                StackName='testroute53stack'
+                StackName='testecsstack'
             )
 
             logging.info('Result of destroy_cf_stack: {}...'.format(response))
@@ -429,6 +461,7 @@ def main(args=None):
         #s3_class_obj.list_buckets()
         #cf_class_obj.build_cf_ec2_stack()
         #cf_class_obj.build_cf_ec2_route53_stack()
+        #cf_class_obj.build_cf_ecs_stack()
         #cf_class_obj.destroy_cf_stack()
 
         logging.info('Done!')
